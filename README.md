@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="ka">
 <head>
 <meta charset="utf-8" />
