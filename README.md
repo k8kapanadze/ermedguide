@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="ka">
 <head>
 <meta charset="utf-8" />
@@ -9,12 +9,13 @@
   h1{text-align:center;margin-bottom:12px}
   .container{max-width:900px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,.08)}
   input,select,textarea{width:100%;padding:10px;margin:6px 0;border:1px solid #ccc;border-radius:6px;box-sizing:border-box}
+  textarea{min-height:70px;resize:vertical}
   button{padding:10px 14px;border:none;border-radius:6px;background:#111;color:#fff;cursor:pointer;font-size:15px}
   .row{display:flex;gap:10px}
   .row .col{flex:1}
   #search{padding:12px;font-size:16px;margin-bottom:12px}
   .card{background:#fff;padding:14px;margin:12px 0;border-left:6px solid #d32f2f;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-  .card b{display:inline-block;margin-bottom:6px}
+  .drug-name{color:#d32f2f;font-weight:bold;font-size:1.1em}
   .card .actions{margin-top:10px}
   .card .actions button{margin-right:8px}
   .delete{background:#d32f2f}
@@ -60,9 +61,11 @@
           <option value="NaCl">NaCl</option>
           <option value="More">More (custom)</option>
         </select>
-        <input id="dilutionCustom" placeholder="ჩაწერე custom განზავება (მაგ. 2 ml, D5W...)" style="display:none;margin-top:6px" />
+        <input id="dilutionCustom" placeholder="ჩაწერე custom განზავება" style="display:none;margin-top:6px" />
       </div>
     </div>
+
+    <textarea id="description" placeholder="მოკლე აღწერა (დამატებითი ინფორმაცია)"></textarea>
 
     <input id="side" placeholder="გვერდითი ეფექტი (side effects)" />
 
@@ -75,11 +78,9 @@
   </div>
 
 <script>
-  // მონაცემები
   let meds = JSON.parse(localStorage.getItem('meds') || '[]');
   let editIndex = null;
 
-  // ელემენტები
   const searchEl = document.getElementById('search');
   const nameEl = document.getElementById('name');
   const indicationEl = document.getElementById('indication');
@@ -87,11 +88,11 @@
   const siteCustomEl = document.getElementById('siteCustom');
   const dilutionEl = document.getElementById('dilution');
   const dilutionCustomEl = document.getElementById('dilutionCustom');
+  const descriptionEl = document.getElementById('description');
   const sideEl = document.getElementById('side');
   const listEl = document.getElementById('list');
   const saveBtn = document.getElementById('saveBtn');
 
-  // დაფა
   function display(){
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
@@ -107,9 +108,7 @@
         if(!q) return true;
         return (
           (m.name && m.name.toLowerCase().includes(q)) ||
-          (m.indication && m.indication.toLowerCase().includes(q)) ||
-          (m.site && (m.site + ' ' + (m.siteCustom||'')).toLowerCase().includes(q)) ||
-          (m.dilution && (m.dilution + ' ' + (m.dilutionCustom||'')).toLowerCase().includes(q))
+          (m.indication && m.indication.toLowerCase().includes(q))
         );
       })
       .forEach(m => {
@@ -119,10 +118,11 @@
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
-          <b style="font-size:1.05em">${escapeHtml(m.name || 'უსახელო')}</b>
-          <div style="margin-top:8px"><b>ჩვენება:</b> ${escapeHtml(m.indication || '-')}</div>
+          <div class="drug-name">${escapeHtml(m.name || 'უსახელო')}</div>
+          <div><b>ჩვენება:</b> ${escapeHtml(m.indication || '-')}</div>
           <div><b>გაკეთების ადგილი:</b> ${escapeHtml(siteText)}</div>
           <div><b>განზავება:</b> ${escapeHtml(dilutionText)}</div>
+          <div><b>მოკლე აღწერა:</b> ${escapeHtml(m.description || '-')}</div>
           <div><b>გვერდითი ეფექტი:</b> ${escapeHtml(m.side || '-')}</div>
           <div class="actions">
             <button class="edit" onclick="editMed(${m._i})">Edit</button>
@@ -133,7 +133,6 @@
       });
   }
 
-  // შენახვა (ახალი ან რედაქტირებული)
   function saveMedication(){
     const name = nameEl.value.trim();
     if(!name){
@@ -142,12 +141,13 @@
     }
 
     const med = {
-      name: name,
+      name,
       indication: indicationEl.value.trim(),
       site: siteEl.value,
       siteCustom: siteEl.value === 'More' ? siteCustomEl.value.trim() : '',
       dilution: dilutionEl.value,
       dilutionCustom: dilutionEl.value === 'More' ? dilutionCustomEl.value.trim() : '',
+      description: descriptionEl.value.trim(),
       side: sideEl.value.trim()
     };
 
@@ -164,45 +164,36 @@
     display();
   }
 
-  // წაშლა
   function deleteMed(i){
     if(confirm('გსურთ მართლწინვე წაშლა?')){
       meds.splice(i,1);
       localStorage.setItem('meds', JSON.stringify(meds));
-      // თუ ვამუშავებდი ამ ელემენტს, წავშალე რედაქტირება
-      if(editIndex === i) { editIndex = null; clearForm(); saveBtn.textContent = 'შენახვა'; }
+      if(editIndex === i){
+        editIndex = null;
+        clearForm();
+        saveBtn.textContent = 'შენახვა';
+      }
       display();
     }
   }
 
-  // რედაქტირება
   function editMed(i){
     const m = meds[i];
     nameEl.value = m.name || '';
     indicationEl.value = m.indication || '';
     siteEl.value = m.site || '';
-    if(m.site === 'More'){
-      siteCustomEl.style.display = 'block';
-      siteCustomEl.value = m.siteCustom || '';
-    } else {
-      siteCustomEl.style.display = 'none';
-      siteCustomEl.value = '';
-    }
+    siteCustomEl.style.display = m.site === 'More' ? 'block' : 'none';
+    siteCustomEl.value = m.siteCustom || '';
     dilutionEl.value = m.dilution || '';
-    if(m.dilution === 'More'){
-      dilutionCustomEl.style.display = 'block';
-      dilutionCustomEl.value = m.dilutionCustom || '';
-    } else {
-      dilutionCustomEl.style.display = 'none';
-      dilutionCustomEl.value = '';
-    }
+    dilutionCustomEl.style.display = m.dilution === 'More' ? 'block' : 'none';
+    dilutionCustomEl.value = m.dilutionCustom || '';
+    descriptionEl.value = m.description || '';
     sideEl.value = m.side || '';
     editIndex = i;
     saveBtn.textContent = 'შენახვა (რედაქტირება)';
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
-  // ფორმის გასუფთავება
   function clearForm(){
     nameEl.value = '';
     indicationEl.value = '';
@@ -212,42 +203,31 @@
     dilutionEl.value = '';
     dilutionCustomEl.value = '';
     dilutionCustomEl.style.display = 'none';
+    descriptionEl.value = '';
     sideEl.value = '';
     editIndex = null;
     saveBtn.textContent = 'შენახვა';
   }
 
-  // ევენთები
-  saveBtn.addEventListener('click', saveMedication);
-  searchEl.addEventListener('input', display);
-
-  siteEl.addEventListener('change', () => {
-    if(siteEl.value === 'More') siteCustomEl.style.display = 'block';
-    else siteCustomEl.style.display = 'none';
-  });
-  dilutionEl.addEventListener('change', () => {
-    if(dilutionEl.value === 'More') dilutionCustomEl.style.display = 'block';
-    else dilutionCustomEl.style.display = 'none';
-  });
-
-  // უსაფრთხო HTML გამოსვლა
   function escapeHtml(str){
     if(!str) return '';
     return String(str)
-      .replace(/&/g, '&amp;')
+      .replace(/&/g,'&amp;')
       .replace(/</g,'&lt;')
       .replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;')
       .replace(/'/g,'&#039;');
   }
 
-  // expose to global for onclick attributes
+  saveBtn.addEventListener('click', saveMedication);
+  searchEl.addEventListener('input', display);
+  siteEl.addEventListener('change', ()=> siteCustomEl.style.display = siteEl.value==='More'?'block':'none');
+  dilutionEl.addEventListener('change', ()=> dilutionCustomEl.style.display = dilutionEl.value==='More'?'block':'none');
+
   window.editMed = editMed;
   window.deleteMed = deleteMed;
 
-  // საწყისი ჩვენება
   display();
-
 </script>
 </body>
 </html>
