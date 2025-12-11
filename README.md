@@ -22,6 +22,8 @@
   .small{font-size:13px;color:#666}
   @media(max-width:700px){.row{flex-direction:column}}
 </style>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
   <h1>CMC Emergency – მედიკამენტების სია</h1>
@@ -80,8 +82,8 @@
   // =================================================================
   // 1. FIREBASE CONFIGURATION AND INITIALIZATION
   // =================================================================
-
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  
+  // თქვენი უნიკალური Firebase Configuration
   const firebaseConfig = {
     apiKey: "AIzaSyCmsg-1RrZDma6xgVLGyd-VPev1tv8eVks",
     authDomain: "ermedguide.firebaseapp.com",
@@ -91,12 +93,6 @@
     appId: "1:369723574752:web:5fd96d3eb5bf94ab1f8385",
     measurementId: "G-814WWYWSDC"
   };
-
-  // Firebase SDK-ების ჩართვა (v8.10.0-ის CDN ვერსიები)
-  // რადგან HTML-ში პირდაპირ ჩასმა გსურთ, გამოიყენება ძველი, მაგრამ მარტივი ვერსია.
-  // ლოგიკურად, ეს სკრიპტები უნდა იყოს აქ:
-  document.write('<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>');
-  document.write('<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>');
 
   // ინიციალიზაცია
   firebase.initializeApp(firebaseConfig);
@@ -181,7 +177,6 @@
       dilutionCustom: dilutionEl.value === 'More' ? dilutionCustomEl.value.trim() : '',
       description: descriptionEl.value.trim(),
       side: sideEl.value.trim(),
-      // სორტირებისთვის დამატება:
       updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
     };
 
@@ -220,7 +215,6 @@
   }
 
   function editMed(id){
-    // მოძებნე მედიკამენტი ადგილობრივ სიაში (რომელიც onSnapshot-მა ჩატვირთა)
     const m = medications.find(med => med.id === id);
     if (!m) return;
 
@@ -235,7 +229,7 @@
     descriptionEl.value = m.description || '';
     sideEl.value = m.side || '';
     
-    editId = id; // დააყენე document ID რედაქტირებისთვის
+    editId = id; 
     saveBtn.textContent = 'შენახვა (რედაქტირება)';
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -269,16 +263,14 @@
   // 4. REAL-TIME LISTENER (onSnapshot)
   // =================================================================
 
-  // ეს არის ყველაზე მნიშვნელოვანი ნაწილი: ის ავტომატურად განაახლებს
-  // 'medications' მასივს და იძახებს 'display' ფუნქციას ნებისმიერი ცვლილებისას.
   db.collection(MEDICATION_COLLECTION)
-    .orderBy('updatedAt', 'desc') // დაალაგებს ბოლოს განახლებულის მიხედვით
+    .orderBy('updatedAt', 'desc') 
     .onSnapshot(snapshot => {
       medications = snapshot.docs.map(doc => ({
-        id: doc.id, // ვინახავთ Firestore-ის Document ID-ს რედაქტირების/წაშლისთვის
+        id: doc.id, 
         ...doc.data()
       }));
-      display(medications); // განაახლე ინტერფეისი
+      display(medications); 
     }, error => {
       console.error("Error getting real-time documents: ", error);
       listEl.innerHTML = `<p style="text-align:center;color:red;padding:18px">შეცდომა Firebase-თან კავშირისას: ${error.message}</p>`;
@@ -290,7 +282,9 @@
   // =================================================================
 
   saveBtn.addEventListener('click', saveMedication);
-  searchEl.addEventListener('input', () => display(medications)); // ძებნა იფილტრება ადგილობრივად
+  searchEl.addEventListener('input', () => display(medications)); 
+
+  // CUSTOM SELECTS 
   siteEl.addEventListener('change', ()=> siteCustomEl.style.display = siteEl.value==='More'?'block':'none');
   dilutionEl.addEventListener('change', ()=> dilutionCustomEl.style.display = dilutionEl.value==='More'?'block':'none');
 
