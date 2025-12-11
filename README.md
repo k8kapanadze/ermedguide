@@ -1,4 +1,3 @@
-
 <html lang="ka">
 <head>
 <meta charset="utf-8" />
@@ -78,8 +77,38 @@
   </div>
 
 <script>
-  let meds = JSON.parse(localStorage.getItem('meds') || '[]');
-  let editIndex = null;
+  // =================================================================
+  // 1. FIREBASE CONFIGURATION AND INITIALIZATION
+  // =================================================================
+
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyCmsg-1RrZDma6xgVLGyd-VPev1tv8eVks",
+    authDomain: "ermedguide.firebaseapp.com",
+    projectId: "ermedguide",
+    storageBucket: "ermedguide.firebasestorage.app",
+    messagingSenderId: "369723574752",
+    appId: "1:369723574752:web:5fd96d3eb5bf94ab1f8385",
+    measurementId: "G-814WWYWSDC"
+  };
+
+  // Firebase SDK-ების ჩართვა (v8.10.0-ის CDN ვერსიები)
+  // რადგან HTML-ში პირდაპირ ჩასმა გსურთ, გამოიყენება ძველი, მაგრამ მარტივი ვერსია.
+  // ლოგიკურად, ეს სკრიპტები უნდა იყოს აქ:
+  document.write('<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>');
+  document.write('<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>');
+
+  // ინიციალიზაცია
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const MEDICATION_COLLECTION = 'medications'; // კოლექციის სახელი Firestore-ში
+
+  // =================================================================
+  // 2. GLOBAL VARIABLES AND ELEMENTS
+  // =================================================================
+
+  let medications = []; // შეინახავს მონაცემებს Firestore-დან
+  let editId = null; // Firestore Document ID რედაქტირებისთვის
 
   const searchEl = document.getElementById('search');
   const nameEl = document.getElementById('name');
@@ -93,17 +122,20 @@
   const listEl = document.getElementById('list');
   const saveBtn = document.getElementById('saveBtn');
 
-  function display(){
+  // =================================================================
+  // 3. CORE FUNCTIONS (CRUD using Firestore)
+  // =================================================================
+
+  function display(medsList){
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
 
-    if(meds.length === 0){
+    if(medsList.length === 0){
       listEl.innerHTML = '<p style="text-align:center;color:#777;padding:18px">ჯერ არ არის დამატებული მედიკამენტები</p>';
       return;
     }
 
-    meds
-      .map((m, i) => ({...m, _i:i}))
+    medsList
       .filter(m => {
         if(!q) return true;
         return (
@@ -125,22 +157,22 @@
           <div><b>მოკლე აღწერა:</b> ${escapeHtml(m.description || '-')}</div>
           <div><b>გვერდითი ეფექტი:</b> ${escapeHtml(m.side || '-')}</div>
           <div class="actions">
-            <button class="edit" onclick="editMed(${m._i})">Edit</button>
-            <button class="delete" onclick="deleteMed(${m._i})">Delete</button>
+            <button class="edit" onclick="editMed('${m.id}')">Edit</button>
+            <button class="delete" onclick="deleteMed('${m.id}')">Delete</button>
           </div>
         `;
         listEl.appendChild(card);
       });
   }
 
-  function saveMedication(){
+  async function saveMedication(){
     const name = nameEl.value.trim();
     if(!name){
       alert('გთხოვ, მიუთითე მედიკამენტის სახელი.');
       return;
     }
 
-    const med = {
+    const medData = {
       name,
       indication: indicationEl.value.trim(),
       site: siteEl.value,
@@ -148,37 +180,50 @@
       dilution: dilutionEl.value,
       dilutionCustom: dilutionEl.value === 'More' ? dilutionCustomEl.value.trim() : '',
       description: descriptionEl.value.trim(),
-      side: sideEl.value.trim()
+      side: sideEl.value.trim(),
+      // სორტირებისთვის დამატება:
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
     };
 
-    if(editIndex === null){
-      meds.push(med);
-    } else {
-      meds[editIndex] = med;
-      editIndex = null;
-      saveBtn.textContent = 'შენახვა';
-    }
-
-    localStorage.setItem('meds', JSON.stringify(meds));
-    clearForm();
-    display();
-  }
-
-  function deleteMed(i){
-    if(confirm('გსურთ მართლწინვე წაშლა?')){
-      meds.splice(i,1);
-      localStorage.setItem('meds', JSON.stringify(meds));
-      if(editIndex === i){
-        editIndex = null;
-        clearForm();
-        saveBtn.textContent = 'შენახვა';
+    try {
+      if(editId === null){
+        // ADD - ახალი ჩანაწერის დამატება
+        await db.collection(MEDICATION_COLLECTION).add(medData);
+        alert('მედიკამენტი წარმატებით დაემატა!');
+      } else {
+        // UPDATE - არსებულის რედაქტირება
+        await db.collection(MEDICATION_COLLECTION).doc(editId).set(medData, { merge: true });
+        alert('მედიკამენტი წარმატებით განახლდა!');
       }
-      display();
+    } catch (e) {
+      console.error("Error saving document: ", e);
+      alert('შეცდომა მონაცემების შენახვისას.');
+    }
+
+    clearForm();
+  }
+
+  async function deleteMed(id){
+    if(confirm('გსურთ მართლწინვე წაშლა?')){
+      try {
+        await db.collection(MEDICATION_COLLECTION).doc(id).delete();
+        alert('მედიკამენტი წარმატებით წაიშალა!');
+      } catch (e) {
+        console.error("Error removing document: ", e);
+        alert('შეცდომა წაშლისას.');
+      }
+      if(editId === id){
+        editId = null;
+        clearForm();
+      }
     }
   }
 
-  function editMed(i){
-    const m = meds[i];
+  function editMed(id){
+    // მოძებნე მედიკამენტი ადგილობრივ სიაში (რომელიც onSnapshot-მა ჩატვირთა)
+    const m = medications.find(med => med.id === id);
+    if (!m) return;
+
     nameEl.value = m.name || '';
     indicationEl.value = m.indication || '';
     siteEl.value = m.site || '';
@@ -189,7 +234,8 @@
     dilutionCustomEl.value = m.dilutionCustom || '';
     descriptionEl.value = m.description || '';
     sideEl.value = m.side || '';
-    editIndex = i;
+    
+    editId = id; // დააყენე document ID რედაქტირებისთვის
     saveBtn.textContent = 'შენახვა (რედაქტირება)';
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -205,7 +251,7 @@
     dilutionCustomEl.style.display = 'none';
     descriptionEl.value = '';
     sideEl.value = '';
-    editIndex = null;
+    editId = null;
     saveBtn.textContent = 'შენახვა';
   }
 
@@ -218,16 +264,40 @@
       .replace(/"/g,'&quot;')
       .replace(/'/g,'&#039;');
   }
+  
+  // =================================================================
+  // 4. REAL-TIME LISTENER (onSnapshot)
+  // =================================================================
+
+  // ეს არის ყველაზე მნიშვნელოვანი ნაწილი: ის ავტომატურად განაახლებს
+  // 'medications' მასივს და იძახებს 'display' ფუნქციას ნებისმიერი ცვლილებისას.
+  db.collection(MEDICATION_COLLECTION)
+    .orderBy('updatedAt', 'desc') // დაალაგებს ბოლოს განახლებულის მიხედვით
+    .onSnapshot(snapshot => {
+      medications = snapshot.docs.map(doc => ({
+        id: doc.id, // ვინახავთ Firestore-ის Document ID-ს რედაქტირების/წაშლისთვის
+        ...doc.data()
+      }));
+      display(medications); // განაახლე ინტერფეისი
+    }, error => {
+      console.error("Error getting real-time documents: ", error);
+      listEl.innerHTML = `<p style="text-align:center;color:red;padding:18px">შეცდომა Firebase-თან კავშირისას: ${error.message}</p>`;
+    });
+
+
+  // =================================================================
+  // 5. EVENT LISTENERS
+  // =================================================================
 
   saveBtn.addEventListener('click', saveMedication);
-  searchEl.addEventListener('input', display);
+  searchEl.addEventListener('input', () => display(medications)); // ძებნა იფილტრება ადგილობრივად
   siteEl.addEventListener('change', ()=> siteCustomEl.style.display = siteEl.value==='More'?'block':'none');
   dilutionEl.addEventListener('change', ()=> dilutionCustomEl.style.display = dilutionEl.value==='More'?'block':'none');
 
+  // გლობალური ფუნქციები (საჭიროა HTML-ში onclick-ისთვის)
   window.editMed = editMed;
   window.deleteMed = deleteMed;
 
-  display();
 </script>
 </body>
 </html>
