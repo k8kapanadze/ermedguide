@@ -3,6 +3,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>CMC Emergency – მედიკამენტები</title>
+
+<!-- FIREBASE SCRIPTS -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"></script>
+
 <style>
   body{font-family:Arial, sans-serif;background:#f5f5f5;margin:0;padding:20px}
   h1{text-align:center;margin-bottom:12px}
@@ -22,9 +27,8 @@
   .small{font-size:13px;color:#666}
   @media(max-width:700px){.row{flex-direction:column}}
 </style>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
+
 <body>
   <h1>CMC Emergency – მედიკამენტების სია</h1>
 
@@ -79,69 +83,65 @@
   </div>
 
 <script>
-  // =================================================================
-  // 1. FIREBASE CONFIGURATION AND INITIALIZATION
-  // =================================================================
-  
-  // თქვენი უნიკალური Firebase Configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyCmsg-1RrZDma6xgVLGyd-VPev1tv8eVks",
-    authDomain: "ermedguide.firebaseapp.com",
-    projectId: "ermedguide",
-    storageBucket: "ermedguide.firebasestorage.app",
-    messagingSenderId: "369723574752",
-    appId: "1:369723574752:web:5fd96d3eb5bf94ab1f8385",
-    measurementId: "G-814WWYWSDC"
-  };
+/* ------------------- FIREBASE INIT ----------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyCmsg-1RrZDma6xgVLGyd-VPev1tv8eVks",
+  authDomain: "ermedguide.firebaseapp.com",
+  projectId: "ermedguide",
+  storageBucket: "ermedguide.firebasestorage.app",
+  messagingSenderId: "369723574752",
+  appId: "1:369723574752:web:5fd96d3eb5bf94ab1f8385",
+  measurementId: "G-814WWYWSDC"
+};
 
-  // ინიციალიზაცია
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const MEDICATION_COLLECTION = 'medications'; // კოლექციის სახელი Firestore-ში
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-  // =================================================================
-  // 2. GLOBAL VARIABLES AND ELEMENTS
-  // =================================================================
+/* --------------------------------------------------------- */
 
-  let medications = []; // შეინახავს მონაცემებს Firestore-დან
-  let editId = null; // Firestore Document ID რედაქტირებისთვის
+let meds = [];
+let editId = null;
 
-  const searchEl = document.getElementById('search');
-  const nameEl = document.getElementById('name');
-  const indicationEl = document.getElementById('indication');
-  const siteEl = document.getElementById('site');
-  const siteCustomEl = document.getElementById('siteCustom');
-  const dilutionEl = document.getElementById('dilution');
-  const dilutionCustomEl = document.getElementById('dilutionCustom');
-  const descriptionEl = document.getElementById('description');
-  const sideEl = document.getElementById('side');
-  const listEl = document.getElementById('list');
-  const saveBtn = document.getElementById('saveBtn');
+const searchEl = document.getElementById('search');
+const nameEl = document.getElementById('name');
+const indicationEl = document.getElementById('indication');
+const siteEl = document.getElementById('site');
+const siteCustomEl = document.getElementById('siteCustom');
+const dilutionEl = document.getElementById('dilution');
+const dilutionCustomEl = document.getElementById('dilutionCustom');
+const descriptionEl = document.getElementById('description');
+const sideEl = document.getElementById('side');
+const listEl = document.getElementById('list');
+const saveBtn = document.getElementById('saveBtn');
 
-  // =================================================================
-  // 3. CORE FUNCTIONS (CRUD using Firestore)
-  // =================================================================
+/* ---------- LOAD FROM FIRESTORE (LIVE) ---------- */
+db.collection("medications").orderBy("name").onSnapshot(snapshot=>{
+    meds = [];
+    snapshot.forEach(doc=>{
+        meds.push({ id: doc.id, ...doc.data() });
+    });
+    display();
+});
 
-  function display(medsList){
+/* ---------- DISPLAY LIST ---------- */
+function display(){
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
 
-    if(medsList.length === 0){
+    if(meds.length === 0){
       listEl.innerHTML = '<p style="text-align:center;color:#777;padding:18px">ჯერ არ არის დამატებული მედიკამენტები</p>';
       return;
     }
 
-    medsList
-      .filter(m => {
-        if(!q) return true;
-        return (
-          (m.name && m.name.toLowerCase().includes(q)) ||
-          (m.indication && m.indication.toLowerCase().includes(q))
-        );
-      })
+    meds
+      .filter(m =>
+        !q ||
+        (m.name && m.name.toLowerCase().includes(q)) ||
+        (m.indication && m.indication.toLowerCase().includes(q))
+      )
       .forEach(m => {
-        const siteText = (m.site === 'More' ? (m.siteCustom || '—') : (m.site || '—'));
-        const dilutionText = (m.dilution === 'More' ? (m.dilutionCustom || '—') : (m.dilution || '—'));
+        const siteText = m.site === 'More' ? (m.siteCustom || '—') : (m.site || '—');
+        const dilutionText = m.dilution === 'More' ? (m.dilutionCustom || '—') : (m.dilution || '—');
 
         const card = document.createElement('div');
         card.className = 'card';
@@ -152,6 +152,7 @@
           <div><b>განზავება:</b> ${escapeHtml(dilutionText)}</div>
           <div><b>მოკლე აღწერა:</b> ${escapeHtml(m.description || '-')}</div>
           <div><b>გვერდითი ეფექტი:</b> ${escapeHtml(m.side || '-')}</div>
+
           <div class="actions">
             <button class="edit" onclick="editMed('${m.id}')">Edit</button>
             <button class="delete" onclick="deleteMed('${m.id}')">Delete</button>
@@ -159,16 +160,17 @@
         `;
         listEl.appendChild(card);
       });
-  }
+}
 
-  async function saveMedication(){
+/* ---------- SAVE ---------- */
+async function saveMedication(){
     const name = nameEl.value.trim();
     if(!name){
       alert('გთხოვ, მიუთითე მედიკამენტის სახელი.');
       return;
     }
 
-    const medData = {
+    const med = {
       name,
       indication: indicationEl.value.trim(),
       site: siteEl.value,
@@ -176,65 +178,51 @@
       dilution: dilutionEl.value,
       dilutionCustom: dilutionEl.value === 'More' ? dilutionCustomEl.value.trim() : '',
       description: descriptionEl.value.trim(),
-      side: sideEl.value.trim(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
+      side: sideEl.value.trim()
     };
 
-    try {
-      if(editId === null){
-        // ADD - ახალი ჩანაწერის დამატება
-        await db.collection(MEDICATION_COLLECTION).add(medData);
-        alert('მედიკამენტი წარმატებით დაემატა!');
-      } else {
-        // UPDATE - არსებულის რედაქტირება
-        await db.collection(MEDICATION_COLLECTION).doc(editId).set(medData, { merge: true });
-        alert('მედიკამენტი წარმატებით განახლდა!');
-      }
-    } catch (e) {
-      console.error("Error saving document: ", e);
-      alert('შეცდომა მონაცემების შენახვისას.');
+    if(editId){
+        await db.collection("medications").doc(editId).update(med);
+        editId = null;
+        saveBtn.textContent = "შენახვა";
+    } else {
+        await db.collection("medications").add(med);
     }
 
     clearForm();
-  }
+}
 
-  async function deleteMed(id){
-    if(confirm('გსურთ მართლწინვე წაშლა?')){
-      try {
-        await db.collection(MEDICATION_COLLECTION).doc(id).delete();
-        alert('მედიკამენტი წარმატებით წაიშალა!');
-      } catch (e) {
-        console.error("Error removing document: ", e);
-        alert('შეცდომა წაშლისას.');
-      }
-      if(editId === id){
-        editId = null;
-        clearForm();
-      }
+/* ---------- DELETE ---------- */
+async function deleteMed(id){
+    if(confirm("დარწმუნებული ხარ?")){
+        await db.collection("medications").doc(id).delete();
     }
-  }
+}
 
-  function editMed(id){
-    const m = medications.find(med => med.id === id);
-    if (!m) return;
+/* ---------- EDIT ---------- */
+function editMed(id){
+    const m = meds.find(x => x.id === id);
+    if(!m) return;
 
-    nameEl.value = m.name || '';
-    indicationEl.value = m.indication || '';
-    siteEl.value = m.site || '';
+    editId = id;
+
+    nameEl.value = m.name;
+    indicationEl.value = m.indication;
+    siteEl.value = m.site;
     siteCustomEl.style.display = m.site === 'More' ? 'block' : 'none';
-    siteCustomEl.value = m.siteCustom || '';
-    dilutionEl.value = m.dilution || '';
+    siteCustomEl.value = m.siteCustom;
+    dilutionEl.value = m.dilution;
     dilutionCustomEl.style.display = m.dilution === 'More' ? 'block' : 'none';
-    dilutionCustomEl.value = m.dilutionCustom || '';
-    descriptionEl.value = m.description || '';
-    sideEl.value = m.side || '';
-    
-    editId = id; 
-    saveBtn.textContent = 'შენახვა (რედაქტირება)';
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
+    dilutionCustomEl.value = m.dilutionCustom;
+    descriptionEl.value = m.description;
+    sideEl.value = m.side;
 
-  function clearForm(){
+    saveBtn.textContent = "შენახვა (რედაქტირება)";
+    window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- FORM RESET ---------- */
+function clearForm(){
     nameEl.value = '';
     indicationEl.value = '';
     siteEl.value = '';
@@ -245,52 +233,21 @@
     dilutionCustomEl.style.display = 'none';
     descriptionEl.value = '';
     sideEl.value = '';
-    editId = null;
-    saveBtn.textContent = 'შენახვა';
-  }
+}
 
-  function escapeHtml(str){
-    if(!str) return '';
-    return String(str)
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;')
-      .replace(/'/g,'&#039;');
-  }
-  
-  // =================================================================
-  // 4. REAL-TIME LISTENER (onSnapshot)
-  // =================================================================
+/* ---------- UTILITY ---------- */
+function escapeHtml(str){
+    return str ? str.replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;" }[m])) : "";
+}
 
-  db.collection(MEDICATION_COLLECTION)
-    .orderBy('updatedAt', 'desc') 
-    .onSnapshot(snapshot => {
-      medications = snapshot.docs.map(doc => ({
-        id: doc.id, 
-        ...doc.data()
-      }));
-      display(medications); 
-    }, error => {
-      console.error("Error getting real-time documents: ", error);
-      listEl.innerHTML = `<p style="text-align:center;color:red;padding:18px">შეცდომა Firebase-თან კავშირისას: ${error.message}</p>`;
-    });
+/* ---------- LISTENERS ---------- */
+saveBtn.addEventListener('click', saveMedication);
+searchEl.addEventListener('input', display);
+siteEl.addEventListener('change', () => siteCustomEl.style.display = siteEl.value==='More'?'block':'none');
+dilutionEl.addEventListener('change', () => dilutionCustomEl.style.display = dilutionEl.value==='More'?'block':'none');
 
-
-  // =================================================================
-  // 5. EVENT LISTENERS
-  // =================================================================
-
-  saveBtn.addEventListener('click', saveMedication);
-  searchEl.addEventListener('input', () => display(medications)); 
-
-  // CUSTOM SELECTS 
-  siteEl.addEventListener('change', ()=> siteCustomEl.style.display = siteEl.value==='More'?'block':'none');
-  dilutionEl.addEventListener('change', ()=> dilutionCustomEl.style.display = dilutionEl.value==='More'?'block':'none');
-
-  // გლობალური ფუნქციები (საჭიროა HTML-ში onclick-ისთვის)
-  window.editMed = editMed;
-  window.deleteMed = deleteMed;
+window.editMed = editMed;
+window.deleteMed = deleteMed;
 
 </script>
 </body>
